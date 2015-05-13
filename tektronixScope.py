@@ -1,5 +1,6 @@
 import telnetlib
 import math
+import numpy as np
 
 from matplotlib import pyplot as plt
 '''
@@ -64,21 +65,24 @@ class TektronixScope:
 			return scaleResp
 
 	def transferWaveformForChannel(self,channel):
-		if channel>=1 and channel<=4:
-			cmdToWrite = 'DATa:SOUrce CH%d\r\n'%(channel)
-			self.writeCommand(cmdToWrite)
-			self.writeCommand('DATa:ENCdg ASCII\r\n')
-			self.writeCommand('DATa:BYT_NR 1\r\n')
-			waveformData=self.writeCommand('WAVFrm?\r\n')
-			awf = AsciiWaveform( waveformData )
-			return awf
+		if hasattr(self,'lastChannel') and self.lastChannel != channel:
+			if channel>=1 and channel<=4:
+				cmdToWrite = 'DATa:SOUrce CH%d\r\n'%(channel)
+				self.writeCommand(cmdToWrite)
+				self.writeCommand('DATa:ENCdg ASCII\r\n')
+				self.writeCommand('DATa:BYT_NR 1\r\n')
+				self.writeCommand('DATa:NR_PT %d\r\n'%(10000))
+				self.lastChannel = channel
+		waveformData=self.writeCommand('WAVFrm?\r\n')
+		awf = AsciiWaveform( waveformData )
+		return awf
 
 
 	def writeCommand( self, cmd ):
 		''' TODO: Add some checks here to ensure this command is valid.
 		'''
 		if self.scope != None:
-			print 'Writing out:',cmd
+			#print 'Writing out:',cmd
 			self.scope.write(cmd)
 			resp = self.scope.read_until('>')
 			return resp
@@ -95,8 +99,15 @@ ts = TektronixScope('192.168.0.11','3998')
 print ts.getIDN()
 scope_settings=ts.getSettings().settings_dict
 ts.setLabelForChannel(1,'Test')
-waveform = ts.transferWaveformForChannel(1)
-plt.plot( waveform.waveform )
+waveform = None
+for i in range(10):
+	ch1 = ts.transferWaveformForChannel(1)
+	if i==0:
+		waveform = ch1.waveform
+	else:
+		waveform = np.concatenate((waveform,ch1.waveform),axis=1)
+
+plt.plot( waveform )
 plt.show()
 
 #ts.closeConnection()
